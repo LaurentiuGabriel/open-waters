@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Maritime Vessel Tracker</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 1;
+        }
+        
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            top: 70px;
+            left: 10px;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+            min-width: 250px;
+        }
+        
+        .control-panel h3 {
+            margin-bottom: 15px;
+            color: #2a5298;
+            border-bottom: 2px solid #2a5298;
+            padding-bottom: 8px;
+        }
+        
+        .filter-section {
+            margin-bottom: 20px;
+        }
+        
+        .filter-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        
+        .location-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 6px;
+            background: #f0f4f8;
+            color: #2a5298;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        
+        .location-btn:hover {
+            background: #2a5298;
+            color: white;
+        }
+        
+        .location-btn.active {
+            background: #2a5298;
+            color: white;
+        }
+        
+        .anomaly-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background: #fff5f5;
+            border-radius: 6px;
+            border-left: 4px solid #e53e3e;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #e53e3e;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* Legend */
+        .legend {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 0.85rem;
+        }
+        
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #2a5298;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .legend-icon {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .vessel-icon { background: #3182ce; }
+        .cargo-icon { background: #38a169; }
+        .tanker-icon { background: #d69e2e; }
+        .anomaly-icon { background: #e53e3e; }
+        
+        /* Popup Styles */
+        .vessel-popup {
+            min-width: 250px;
+        }
+        
+        .vessel-popup h3 {
+            margin: 0 0 10px 0;
+            color: #2a5298;
+            font-size: 1.1rem;
+        }
+        
+        .vessel-info {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .vessel-info strong {
+            color: #333;
+        }
+        
+        .anomaly-popup {
+            min-width: 280px;
+            max-width: 320px;
+        }
+        
+        .anomaly-popup h3 {
+            margin: 0 0 10px 0;
+            color: #e53e3e;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .anomaly-type {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        
+        .anomaly-conflict { background: #fed7d7; color: #c53030; }
+        .anomaly-closure { background: #feebc8; color: #c05621; }
+        .anomaly-weather { background: #c6f6d5; color: #276749; }
+        .anomaly-traffic { background: #bee3f8; color: #2b6cb0; }
+        
+        .anomaly-description {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #4a5568;
+        }
+        
+        /* Loading Indicator */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2a5298;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Vessel Markers */
+        .vessel-marker {
+            transition: all 0.3s;
+        }
+        
+        .vessel-marker:hover {
+            transform: scale(1.2);
+        }
+        
+        /* Status Indicator */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online { background: #48bb78; }
+        .status-offline { background: #f56565; }
+        .status-connecting { background: #ed8936; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1><i class="fas fa-ship"></i> Global Maritime Vessel Tracker</h1>
+        <div class="header-stats">
+            <div class="stat-item">
+                <span class="status-indicator" id="connection-status"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-ship"></i>
+                <span id="vessel-count">0</span> Vessels
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span id="anomaly-count">0</span> Anomalies
+            </div>
+        </div>
+    </div>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <h3><i class="fas fa-map-marker-alt"></i> Location Filters</h3>
+        
+        <div class="filter-section">
+            <label>Strategic Waterways</label>
+            <button class="location-btn" onclick="focusLocation('suez')">
+                <i class="fas fa-water"></i> Suez Canal
+            </button>
+            <button class="location-btn" onclick="focusLocation('hormuz')">
+                <i class="fas fa-water"></i> Strait of Hormuz
+            </button>
+            <button class="location-btn" onclick="focusLocation('malacca')">
+                <i class="fas fa-water"></i> Strait of Malacca
+            </button>
+            <button class="location-btn" onclick="focusLocation('panama')">
+                <i class="fas fa-water"></i> Panama Canal
+            </button>
+            <button class="location-btn" onclick="focusLocation('bosporus')">
+                <i class="fas fa-water"></i> Turkish Straits
+            </button>
+            <button class="location-btn" onclick="focusLocation('gibraltar')">
+                <i class="fas fa-water"></i> Strait of Gibraltar
+            </button>
+            <button class="location-btn active" onclick="focusLocation('world')">
+                <i class="fas fa-globe"></i> Global View
+            </button>
+        </div>
+        
+        <div class="anomaly-toggle">
+            <label class="switch">
+                <input type="checkbox" id="show-anomalies" checked onchange="toggleAnomalies()">
+                <span class="slider"></span>
+            </label>
+            <span>Show Anomalies</span>
+        </div>
+    </div>
+    
+    <!-- Legend -->
+    <div class="legend">
+        <h4>Vessel Types</h4>
+        <div class="legend-item">
+            <div class="legend-icon cargo-icon"></div>
+            <span>Cargo Ship</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon tanker-icon"></div>
+            <span>Tanker</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon vessel-icon"></div>
+            <span>Other Vessel</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-icon anomaly-icon"></div>
+            <span>Anomaly/Alert</span>
+        </div>
+    </div>
+    
+    <!-- Loading Screen -->
+    <div class="loading" id="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Connecting to AIS Stream...</p>
+        <p style="font-size: 0.85rem; color: #666; margin-top: 10px;">Fetching global vessel positions</p>
+    </div>
+    
+    <!-- Map -->
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let vesselMarkers = {};
+        let anomalyMarkers = {};
+        let ws;
+        let showAnomalies = true;
+        let vesselCount = 0;
+        let anomalyCount = 0;
+        
+        // Location definitions
+        const locations = {
+            suez: { 
+                name: 'Suez Canal', 
+                lat: 30.5852, 
+                lng: 32.2654, 
+                zoom: 10,
+                bounds: [[29.9, 32.0], [31.3, 32.6]]
+            },
+            hormuz: { 
+                name: 'Strait of Hormuz', 
+                lat: 26.6054, 
+                lng: 56.2454, 
+                zoom: 11,
+                bounds: [[25.9, 55.5], [27.3, 57.0]]
+            },
+            malacca: { 
+                name: 'Strait of Malacca', 
+                lat: 3.0738, 
+                lng: 100.6417, 
+                zoom: 9,
+                bounds: [[1.5, 99.5], [4.5, 101.5]]
+            },
+            panama: { 
+                name: 'Panama Canal', 
+                lat: 9.0645, 
+                lng: -79.6630, 
+                zoom: 11,
+                bounds: [[8.5, -80.2], [9.6, -79.2]]
+            },
+            bosporus: { 
+                name: 'Turkish Straits', 
+                lat: 41.1891, 
+                lng: 29.0610, 
+                zoom: 11,
+                bounds: [[40.8, 28.5], [41.6, 29.5]]
+            },
+            gibraltar: { 
+                name: 'Strait of Gibraltar', 
+                lat: 35.9647, 
+                lng: -5.6040, 
+                zoom: 11,
+                bounds: [[35.8, -5.8], [36.2, -5.2]]
+            },
+            world: { 
+                name: 'Global View', 
+                lat: 20, 
+                lng: 0, 
+                zoom: 2,
+                bounds: null
+            }
+        };
+        
+        // Anomaly data (simulated for demonstration)
+        const anomalies = [
+            {
+                id: 'anomaly-1',
+                lat: 30.05,
+                lng: 32.31,
+                title: 'Suez Canal Traffic Congestion',
+                type: 'traffic',
+                severity: 'medium',
+                description: 'Heavy vessel traffic reported in the northern section of the Suez Canal. Average wait time: 6-8 hours.',
+                affectedArea: 'Suez Canal, km 15-25',
+                lastUpdated: new Date().toISOString(),
+                source: 'Port Authority'
+            },
+            {
+                id: 'anomaly-2',
+                lat: 26.65,
+                lng: 56.28,
+                title: 'Regional Tensions Reported',
+                type: 'conflict',
+                severity: 'high',
+                description: 'Heightened military presence and vessel inspections in the Strait of Hormuz. Commercial shipping advised to exercise caution.',
+                affectedArea: 'Strait of Hormuz - Persian Gulf Approach',
+                lastUpdated: new Date().toISOString(),
+                source: 'Maritime Security Alert'
+            },
+            {
+                id: 'anomaly-3',
+                lat: 41.15,
+                lng: 29.08,
+                title: 'Temporary Navigation Restrictions',
+                type: 'closure',
+                severity: 'medium',
+                description: 'Bosphorus Strait experiencing temporary closure due to adverse weather conditions. Expected reopening in 4 hours.',
+                affectedArea: 'Bosphorus Strait - Full Length',
+                lastUpdated: new Date().toISOString(),
+                source: 'Turkish Maritime Authority'
+            },
+            {
+                id: 'anomaly-4',
+                lat: 35.98,
+                lng: -5.62,
+                title: 'High Wind Advisory',
+                type: 'weather',
+                severity: 'medium',
+                description: 'Strong winds (25-35 knots) affecting Strait of Gibraltar. Small craft advisory in effect.',
+                affectedArea: 'Strait of Gibraltar - Mediterranean Side',
+                lastUpdated: new Date().toISOString(),
+                source: 'MeteoMarine'
+            }
+        ];
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false
+            }).setView([20, 0], 2);
+            
+            // Add zoom control to top-right
+            L.control.zoom({
+                position: 'topright'
+            }).addTo(map);
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Add maritime tile layer for depth
+            L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://openseamap.org">OpenSeaMap</a> contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Display anomalies
+            displayAnomalies();
+            
+            // Connect to AIS stream
+            connectAISStream();
+        }
+        
+        // Connect to AIS WebSocket
+        function connectAISStream() {
+            updateConnectionStatus('connecting');
+            
+            // Using aisstream.io WebSocket API (free tier available)
+            const wsUrl = 'wss://stream.aisstream.io/v0/stream';
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                updateConnectionStatus('online');
+                document.getElementById('loading-screen').style.display = 'none';
+                
+
+                const subscription = {
+                    APIKey: "e8f363c876efa660040aa96728781a4369ee37b5", 
+                    BoundingBoxes: [[[-90, -180], [90, 180]]]
+                };
+                
+                ws.send(JSON.stringify(subscription));
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleAISMessage(data);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus('offline');
+                // Fallback to simulated data
+                simulateVesselData();
+            };
+            
+            ws.onclose = function() {
+                updateConnectionStatus('offline');
+                // Fallback to simulated data
+                simulateVesselData();
+            };
+        }
+        
+        // Handle AIS messages
+        function handleAISMessage(data) {
+            if (data.MessageType === 'PositionReport') {
+                const mmsi = data.MetaData.MMSI;
+                const position = data.Message.PositionReport;
+                
+                updateVesselMarker(mmsi, {
+                    lat: position.Latitude,
+                    lng: position.Longitude,
+                    sog: position.Sog || 0,
+                    cog: position.Cog || 0,
+                    heading: position.TrueHeading || position.Cog || 0,
+                    name: data.MetaData.ShipName || `Vessel ${mmsi}`,
+                    type: data.MetaData.VesselType || 'Unknown',
+                    timestamp: data.MetaData.time_utc
+                });
+            }
+        }
+        
+        function simulateVesselData() {
+            document.getElementById('loading-screen').style.display = 'none';
+            
+            const vesselTypes = ['Cargo', 'Tanker', 'Container', 'Bulk Carrier', 'Passenger', 'Fishing'];
+            const locationsToSimulate = ['suez', 'hormuz', 'malacca', 'panama', 'bosporus', 'gibraltar'];
+            
+            locationsToSimulate.forEach((locKey, idx) => {
+                const loc = locations[locKey];
+                const numVessels = 15 + Math.floor(Math.random() * 20); 
+                
+                for (let i = 0; i < numVessels; i++) {
+                    const mmsi = `SIM-${locKey}-${i}`;
+                    const offsetLat = (Math.random() - 0.5) * 0.5;
+                    const offsetLng = (Math.random() - 0.5) * 0.5;
+                    
+                    const vessel = {
+                        lat: loc.lat + offsetLat,
+                        lng: loc.lng + offsetLng,
+                        sog: (Math.random() * 20).toFixed(1),
+                        cog: Math.floor(Math.random() * 360),
+                        heading: Math.floor(Math.random() * 360),
+                        name: `${loc.name.split(' ')[0]} ${vesselTypes[Math.floor(Math.random() * vesselTypes.length)]} ${i + 1}`,
+                        type: vesselTypes[Math.floor(Math.random() * vesselTypes.length)],
+                        timestamp: new Date().toISOString(),
+                        simulated: true
+                    };
+                    
+                    setTimeout(() => {
+                        updateVesselMarker(mmsi, vessel);
+                    }, i * 100 + idx * 500);
+                }
+            });
+        }
+        
+        function updateVesselMarker(mmsi, vessel) {
+            if (!vesselMarkers[mmsi]) {
+                vesselCount++;
+                document.getElementById('vessel-count').textContent = vesselCount;
+            }
+            
+            if (vesselMarkers[mmsi]) {
+                map.removeLayer(vesselMarkers[mmsi]);
+            }
+            
+            let color = '#3182ce';
+            if (vessel.type.includes('Cargo')) color = '#38a169';
+            else if (vessel.type.includes('Tanker')) color = '#d69e2e';
+            
+            const icon = L.divIcon({
+                className: 'vessel-marker',
+                html: `<div style="
+                    width: 12px;
+                    height: 12px;
+                    background: ${color};
+                    border-radius: 50%;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    transform: rotate(${vessel.heading}deg);
+                "></div>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            
+            // Create popup content
+            const popupContent = `
+                <div class="vessel-popup">
+                    <h3><i class="fas fa-ship"></i> ${vessel.name}</h3>
+                    <div class="vessel-info"><strong>MMSI:</strong> ${mmsi}</div>
+                    <div class="vessel-info"><strong>Type:</strong> ${vessel.type}</div>
+                    <div class="vessel-info"><strong>Position:</strong> ${vessel.lat.toFixed(4)}°N, ${vessel.lng.toFixed(4)}°E</div>
+                    <div class="vessel-info"><strong>Speed:</strong> ${vessel.sog} knots</div>
+                    <div class="vessel-info"><strong>Heading:</strong> ${vessel.heading}°</div>
+                    <div class="vessel-info"><strong>Last Update:</strong> ${new Date(vessel.timestamp).toLocaleTimeString()}</div>
+                    ${vessel.simulated ? '<div class="vessel-info" style="color: #ed8936;"><i class="fas fa-info-circle"></i> Simulated Data</div>' : ''}
+                </div>
+            `;
+            
+            // Create marker
+            const marker = L.marker([vessel.lat, vessel.lng], { icon: icon })
+                .addTo(map)
+                .bindPopup(popupContent);
+            
+            vesselMarkers[mmsi] = marker;
+        }
+        
+        // Display anomalies on map
+        function displayAnomalies() {
+            anomalyCount = anomalies.length;
+            document.getElementById('anomaly-count').textContent = anomalyCount;
+            
+            anomalies.forEach(anomaly => {
+                // Create pulsing marker
+                const icon = L.divIcon({
+                    className: 'anomaly-marker',
+                    html: `<div style="
+                        width: 24px;
+                        height: 24px;
+                        background: rgba(229, 62, 62, 0.6);
+                        border-radius: 50%;
+                        border: 3px solid #e53e3e;
+                        box-shadow: 0 0 15px rgba(229, 62, 62, 0.8);
+                        animation: pulse 1.5s infinite;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <i class="fas fa-exclamation" style="color: white; font-size: 12px;"></i>
+                    </div>
+                    <style>
+                        @keyframes pulse {
+                            0% { transform: scale(1); opacity: 1; }
+                            50% { transform: scale(1.2); opacity: 0.8; }
+                            100% { transform: scale(1); opacity: 1; }
+                        }
+                    </style>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                
+                const typeClass = `anomaly-${anomaly.type}`;
+                const typeLabel = anomaly.type.charAt(0).toUpperCase() + anomaly.type.slice(1);
+                
+                const popupContent = `
+                    <div class="anomaly-popup">
+                        <h3><i class="fas fa-exclamation-triangle"></i> ${anomaly.title}</h3>
+                        <span class="anomaly-type ${typeClass}">${typeLabel}</span>
+                        <div style="margin: 10px 0;">
+                            <strong>Severity:</strong> <span style="color: ${anomaly.severity === 'high' ? '#e53e3e' : anomaly.severity === 'medium' ? '#dd6b20' : '#38a169'};">${anomaly.severity.toUpperCase()}</span>
+                        </div>
+                        <div class="anomaly-description">
+                            ${anomaly.description}
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+                            <strong>Affected Area:</strong> ${anomaly.affectedArea}
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.75rem; color: #999;">
+                            Source: ${anomaly.source} | Updated: ${new Date(anomaly.lastUpdated).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+                
+                const marker = L.marker([anomaly.lat, anomaly.lng], { icon: icon })
+                    .addTo(map)
+                    .bindPopup(popupContent, { maxWidth: 350 });
+                
+                anomalyMarkers[anomaly.id] = marker;
+            });
+        }
+        
+        // Focus map on location
+        function focusLocation(locationKey) {
+            const loc = locations[locationKey];
+            if (loc) {
+                if (loc.bounds) {
+                    map.fitBounds(loc.bounds);
+                } else {
+                    map.setView([loc.lat, loc.lng], loc.zoom);
+                }
+                
+                // Update active button
+                document.querySelectorAll('.location-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+            }
+        }
+        
+        // Toggle anomalies visibility
+        function toggleAnomalies() {
+            showAnomalies = document.getElementById('show-anomalies').checked;
+            
+            Object.values(anomalyMarkers).forEach(marker => {
+                if (showAnomalies) {
+                    marker.addTo(map);
+                } else {
+                    map.removeLayer(marker);
+                }
+            });
+        }
+        
+        // Update connection status
+        function updateConnectionStatus(status) {
+            const indicator = document.getElementById('connection-status');
+            const text = document.getElementById('status-text');
+            
+            indicator.className = 'status-indicator';
+            
+            switch(status) {
+                case 'online':
+                    indicator.classList.add('status-online');
+                    text.textContent = 'Live Data';
+                    break;
+                case 'offline':
+                    indicator.classList.add('status-offline');
+                    text.textContent = 'Simulated Data';
+                    break;
+                case 'connecting':
+                    indicator.classList.add('status-connecting');
+                    text.textContent = 'Connecting...';
+                    break;
+            }
+        }
+        
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initMap);
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html>
